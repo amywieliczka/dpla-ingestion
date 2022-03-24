@@ -1,6 +1,7 @@
 from dplaingestion.mappers.oai_dublin_core_mapper import OAIDublinCoreMapper
 from dplaingestion.selector import exists, getprop
 from akara import logger
+import sys
 
 class CAVPP_Islandora_Mapper(OAIDublinCoreMapper):
     '''CAVPP mapper from Islandora'''
@@ -152,7 +153,7 @@ class CAVPP_Islandora_Mapper(OAIDublinCoreMapper):
 
     def map_identifier(self):
         #scrub archive.org and cavpp values from identifier
-        fields = ("bibliographicCitation", "identifier")
+        fields = ("bibliographicCitation", "identifier", "identifier.ark")
 
         values = []
         for field in fields:
@@ -177,3 +178,11 @@ class CAVPP_Islandora_Mapper(OAIDublinCoreMapper):
 
     def map_rights(self):
         self.source_resource_prop_to_prop("rights")
+
+    def map_relation(self):
+        # subclassed to remove "isPartOf" from fields
+        fields = ("conformsTo", "hasFormat", "hasPart", "hasVersion",
+                  "isFormatOf", "isReferencedBy", "isReplacedBy",
+                  "isRequiredBy", "isVersionOf", "references", "relation",
+                  "replaces", "requires")
+        self.source_resource_orig_list_to_prop(fields, 'relation')

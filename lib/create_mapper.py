@@ -187,6 +187,10 @@ def create_mapper(mapper_type, data):
         from dplaingestion.mappers.omeka_nothumb_mapper import Omeka_NoThumb_Mapper
         return Omeka_NoThumb_Mapper(data)
 
+    def _create_omeka_santa_clara_mapper(data):
+        from dplaingestion.mappers.omeka_santa_clara_mapper import Omeka_OAI_SantaClara_mapper
+        return Omeka_OAI_SantaClara_mapper(data)
+
     def _create_ucb_blacklight_dc_mapper(data):
         from dplaingestion.mappers.ucb_blacklight_dc_mapper import \
             UCBBlacklightDCMapper
@@ -326,6 +330,14 @@ def create_mapper(mapper_type, data):
         from dplaingestion.mappers.arck_oai_mapper import ArcK_OAIMapper
         return ArcK_OAIMapper(data)
 
+    def _create_preservica_api_mapper(data):
+        from dplaingestion.mappers.preservica_api_mapper import PreservicaAPIMapper
+        return PreservicaAPIMapper(data)
+
+    def _create_ucla_oai_mapper(data):
+        from dplaingestion.mappers.ucla_oai_mapper import UCLA_OAIMapper
+        return UCLA_OAIMapper(data)
+
     mappers = {
         'marc': lambda d: _create_pymarc_mapper(d),
         'dublin_core': lambda d: _create_dublin_core_mapper(d),
@@ -366,6 +378,7 @@ def create_mapper(mapper_type, data):
         'csa_omeka': lambda d: _create_csa_omeka_mapper(d),
         'omeka': lambda d: _create_omeka_mapper(d),
         'omeka_nothumb': lambda d: _create_omeka_nothumb_mapper(d),
+        'omeka_santa_clara': lambda d: _create_omeka_santa_clara_mapper(d),
         'ucb_blacklight': lambda d: _create_ucb_blacklight_dc_mapper(d),
         'cmis_atom': lambda d: _create_cmis_atom_dc_mapper(d),
         'cabrillo_suppress_description': lambda d: _create_cabrillo_mapper(d),
@@ -401,6 +414,8 @@ def create_mapper(mapper_type, data):
         'internet_archive': lambda d: _create_internet_archive_mapper(d),
         'sjsu_islandora': lambda d: _create_sjsu_islandora_mapper(d),
         'arck_oai': lambda d: _create_arck_oai_mapper(d),
+        'preservica_api': lambda d: _create_preservica_api_mapper(d),
+        'ucla_oai_dpla': lambda d: _create_ucla_oai_mapper(d)
     }
 
     return mappers.get(mapper_type)(data)
