@@ -48,7 +48,7 @@ class OAC_DCMapper(object):
             "item_count",
         ])
 
-        """Mapps the mapped_data sourceResource fields."""
+        """Maps the mapped_data sourceResource fields."""
         self.mapped_data["sourceResource"].update({
             "contributor": self.get_vals("contributor"),
             "creator": self.get_vals("creator"),
@@ -151,6 +151,18 @@ class OAC_DCMapper(object):
                 if d.get('attrib') if d.get('attrib',{}).get('q') == specify
             ]
         return values
+
+    def source_resource_prop_to_prop(self, prop, suppress_attribs={}):
+        '''Override to handle elements which are dictionaries of format
+        {'attrib': {}, 'text':"string value of element"}
+
+        prop - name of field in original data and in sourceResource to map to
+        suppress_attribs is a dictionary of attribute key:value pairs to
+            omit from mapping.
+
+        '''
+        values = self.get_values_from_text_attrib(prop, suppress_attribs)
+        self.update_source_resource({prop: values})
 
     def get_best_oac_image(self):
         '''From the list of images, choose the largest one'''
