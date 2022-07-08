@@ -13,5 +13,7 @@ URL_OAC_CONTENT_BASE = module_config().get(
 class OAC_DCMapperSuppressPublisher(OAC_DCMapper):
     '''Mapper for OAC xml feed with bogus publisher fields'''
     # sourceResource mapping
-    def map_publisher(self):
-        pass
+    def map(self):
+        super(OAC_DCMapperSuppressPublisher, self).map()
+        self.mapped_data["sourceResource"].pop("publisher")
+

@@ -1,9 +1,10 @@
 import os
 import re
-from dplaingestion.mappers.dublin_core_mapper import DublinCoreMapper
 from dplaingestion.selector import exists, getprop
 from dplaingestion.utilities import iterify
 from akara import module_config
+from dplaingestion.mappers.mapper import Mapper
+
 
 URL_OAC_CONTENT_BASE = module_config().get(
     'url_oac_content',
@@ -14,16 +15,101 @@ URL_OAC_CONTENT_BASE = module_config().get(
 Anum_re = re.compile('A\d\d\d\d')
 
 
-class OAC_DCMapper(DublinCoreMapper):
-    '''Mapper for OAC xml feed objects'''
+class OAC_DCMapper(object):
+    def __init__(self, provider_data):
+        self.provider_data = provider_data
+        self.mapped_data = {"sourceResource": {}}
 
-    def get_values_from_text_attrib(self, provider_prop, suppress_attribs={}):
+    def map(self):
+        provider_data = self.provider_data
+
+        id = provider_data.get("id", "")
+        self.mapped_data.update({
+            "id": id,
+            "_id": provider_data.get("_id"),
+            "@id": f"http://ucldc.cdlib.org/api/items/{id}",
+            "originalRecord": provider_data.get("originalRecord"),
+            "ingestDate": provider_data.get("ingestDate"), 
+            "ingestType": provider_data.get("ingestType"), 
+            "ingestionSequence": provider_data.get("ingestionSequence"),
+            # This is set in select-oac-id but must be added to mapped data
+            'isShownAt': provider_data.get('isShownAt', None),
+            'provider': provider_data.get('provider'),
+            'dataProvider': provider_data.get(
+                'originalRecord', {}).get('collection'),
+            'isShownBy': self.get_best_oac_image(),
+            'item_count': self.map_item_count(),
+        })
+
+        self.remove_if_none([
+            "provider",
+            "dataProvider",
+            "isShownBy",
+            "item_count",
+        ])
+
+        """Mapps the mapped_data sourceResource fields."""
+        self.mapped_data["sourceResource"].update({
+            "contributor": self.get_vals("contributor"),
+            "creator": self.get_vals("creator"),
+            "extent": self.get_vals("extent"),
+            "language": self.get_vals("language"),
+            "publisher": self.get_vals("publisher"),
+            "provenance": self.get_vals("provenance"),
+
+            'description': self.collate(
+                ("abstract", "description", "tableOfContents")),
+            'identifier': self.collate(
+                ("bibliographicCitation", "identifier")),
+            'rights': self.collate(("accessRights", "rights")),
+
+            "date": self.get_vals(
+                "date", suppress_attribs={'q': 'dcterms:dateCopyrighted'}),
+            "format": self.get_vals("format", suppress_attribs={'q': 'x'}),
+            "title": self.get_vals(
+                "title", suppress_attribs={'q': 'alternative'}),
+            "type": self.get_vals(
+                "type", suppress_attribs={'q': 'genreform'}),
+            'subject': self.map_subject(),
+
+            'copyrightDate': self.map_specific(
+                'date', 'dcterms:dateCopyrighted'),
+            'alternativeTitle': self.map_specific('title', 'alternative'),
+            'genre': self.map_specific('type', 'genreform'),
+
+            "stateLocatedIn": [{"name": "California"}],
+            'spatial': self.map_spatial(),
+            'temporal': self.map_temporal(),
+        })
+            
+        self.remove_if_empty_list([
+            "copyrightDate", 
+            "alternativeTitle", 
+            "genre", 
+            "description", 
+            "identifier", 
+            "rights",
+            "spatial",
+            "temporal"
+        ])
+
+    def remove_if_none(self, fields):
+        for field in fields:
+            if self.mapped_data[field] is None:
+                self.mapped_data.pop(field)
+
+    def remove_if_empty_list(self, fields):
+        for field in fields:
+            if self.mapped_data["sourceResource"][field] == []:
+                self.mapped_data["sourceResource"].pop(field)
+
+    def get_vals(self, provider_prop, suppress_attribs={}):
         '''Return a list of string values take from the OAC type
         original record (each value is {'text':<val>, 'attrib':<val>} object)
         '''
         values = []
-        if exists(self.provider_data_source, provider_prop):
-            for x in self.provider_data_source[provider_prop]:
+        if exists(self.provider_data, provider_prop):
+            for x in self.provider_data[provider_prop]:
                 try:
                     value = x['text']
                 except KeyError:
@@ -42,65 +128,45 @@ class OAC_DCMapper(DublinCoreMapper):
                         values.append(x['text'])
         return values
 
-    # sourceResource mapping
-    def source_resource_orig_to_prop(self,
-                                     provider_prop,
-                                     srcRes_prop,
-                                     suppress_attribs={}):
+    def collate(self, original_fields):
         '''Override to handle elements which are dictionaries of format
         {'attrib': {}, 'text':"string value of element"}
-        Args:
-            provider_prop - name of field in original data
-            srcRes_prop - name of field in sourceResource to map to
-            suppress_attribs is a dictionary of attribute key:value pairs to
-                omit from mapping.
-        '''
-        values = self.get_values_from_text_attrib(provider_prop,
-                                                  suppress_attribs)
-        self.update_source_resource({srcRes_prop: values})
-
-    def source_resource_prop_to_prop(self, prop, suppress_attribs={}):
-        '''Override to handle elements which are dictionaries of format
-        {'attrib': {}, 'text':"string value of element"}
-        suppress_attribs is a dictionary of attribute key:value pairs to
-        omit from mapping.
-        '''
-        provider_prop = prop if not self.prefix else ''.join(
-            (self.prefix, prop))
-        self.source_resource_orig_to_prop(provider_prop, prop,
-                                          suppress_attribs)
-
-    def source_resource_orig_list_to_prop(self,
-                                          original_fields,
-                                          srcRes_prop,
-                                          suppress_attribs={}):
-        '''Override to handle elements which are dictionaries of format
-        {'attrib': {}, 'text':"string value of element"}
-        suppress_attribs is a dictionary of attribute key:value pairs to
-        omit from mapping.
 
         for a list of fields in the providers original data, append the
         values into a single sourceResource field
         '''
         values = []
         for field in original_fields:
-            if exists(self.provider_data_source, field):
+            if exists(self.provider_data, field):
                 values.extend(
-                    self.get_values_from_text_attrib(field, suppress_attribs))
-        if values:
-            self.update_source_resource({srcRes_prop: values})
+                    self.get_vals(field))
+        return values
+
+    def map_specific(self, src_prop, dest_prop, specify):
+        provider_data = self.provider_data.get(src_prop, None)
+        values = []
+        if provider_data:
+            values = [
+                d.get('text') for d in provider_data
+                if d.get('attrib') if d.get('attrib',{}).get('q') == specify
+            ]
+        return values
 
     def get_best_oac_image(self):
         '''From the list of images, choose the largest one'''
         best_image = None
         if 'originalRecord' in self.provider_data:  # guard weird input
             dim = 0
-            thumb = self.provider_data.get('originalRecord',{}).get('thumbnail', None)
+            # 'thumbnail' might be represented different in xmltodict 
+            # vs. the custom fetching mark was doing
+            thumb = self.provider_data.get('originalRecord', {}).get('thumbnail', None)
             if thumb:
                 if 'src' in thumb:
                     dim = max(int(thumb.get('X')), int(thumb.get('Y')))
                     best_image = thumb.get('src')
-            ref_images = self.provider_data.get('originalRecord',{}).get(
+            # 'reference-image' might be represented differently in xmltodict
+            # vs. the custom fetching mark was doing
+            ref_images = self.provider_data.get('originalRecord', {}).get(
                 'reference-image', [])
             if type(ref_images) == dict:
                 ref_images = [ref_images]
@@ -112,55 +178,30 @@ class OAC_DCMapper(DublinCoreMapper):
                 best_image = '/'.join((URL_OAC_CONTENT_BASE, best_image))
         return best_image
 
-    def map_item_count(self, index=None):
+    def map_item_count(self):
         '''Use reference-image-count value to determine compound objects.
         NOTE: value is not always accurate so only determines complex (-1)
         or not complex (no item_count value)
         '''
+        item_count = None
         image_count = 0
         if 'originalRecord' in self.provider_data:  # guard weird input
             ref_image_count = self.provider_data.get('originalRecord',{}).get(
-                'reference-image-count', None)
+                'reference-image-count')
             if ref_image_count:
                 image_count = ref_image_count[0]['text']
             if image_count > "1":
-                self.mapped_data.update({"item_count": "-1"})
-
-    def map_is_shown_at(self, index=None):
-        ''' This is set in select-oac-id but must be added to mapped data'''
-        self.mapped_data.update({
-            'isShownAt': self.provider_data.get('isShownAt', None)
-        })
-
-    def map_is_shown_by(self, index=None):
-        # already set in select_oac_id to base of {{obj url}}/thumbnail
-        best_image = self.get_best_oac_image()
-        if best_image:
-            self.mapped_data.update({"isShownBy": self.get_best_oac_image(), })
-
-    def map_data_provider(self):
-        if 'originalRecord' in self.provider_data:  # guard weird input
-            if 'collection' in self.provider_data.get('originalRecord'):
-                self.mapped_data.update({
-                    "dataProvider":
-                    self.provider_data.get('originalRecord',{}).get('collection')
-                })
-
-    def map_state_located_in(self):
-        self.update_source_resource({
-            "stateLocatedIn": [{
-                "name": "California"
-            }]
-        })
+                item_count = "-1"
+        return item_count
 
     def map_spatial(self):
+        coverage = []
         if 'originalRecord' in self.provider_data:  # guard weird input
             if 'coverage' in self.provider_data.get('originalRecord'):
                 coverage_data = iterify(
                     getprop(self.provider_data.get('originalRecord'), "coverage"))
                 # remove arks from data
                 # and move the "text" value to
-                coverage = []
                 for c in coverage_data:
                     if (not isinstance(c, basestring) and
                             not c.get('text').startswith('ark:')):
@@ -168,65 +209,21 @@ class OAC_DCMapper(DublinCoreMapper):
                             coverage.append(c.get('text'))
                         if 'q' not in c.get('attrib', {}) and c.get('attrib', {}) is not None and not Anum_re.match(c.get('text')):
                             coverage.append(c.get('text'))
-                self.update_source_resource({"spatial": coverage})
+        return coverage
 
     def map_temporal(self):
+        temporal = []
         if 'originalRecord' in self.provider_data:  # guard weird input
             if 'coverage' in self.provider_data.get('originalRecord'):
                 time_data = iterify(
                     getprop(self.provider_data.get('originalRecord'), "coverage"))
-                temporal = []
                 for t in time_data:
                     if 'q' in t.get('attrib', {}) and 'temporal' in t.get('attrib',{}).get('q'):
                         temporal.append(t.get('text'))
-                    self.update_source_resource({"temporal": temporal})
-
-    def map_format(self):
-        self.source_resource_prop_to_prop(
-            "format", suppress_attribs={'q': 'x'})
+        return temporal
 
     def map_subject(self):
-        subject_values = self.get_values_from_text_attrib(
+        subject_values = self.get_vals(
             "subject", suppress_attribs={'q': 'series'})
         subject_objs = [{'name': s} for s in subject_values]
-        self.update_source_resource({"subject": subject_objs})
-
-    def map_relation(self):
-        # drop relation items
-        pass
-
-    def map_date(self):
-        # suppress dateCopyrighted from main date field
-        self.source_resource_prop_to_prop(
-            "date", suppress_attribs={'q': 'dcterms:dateCopyrighted'})
-        copydate_data = self.provider_data.get('date', None)
-        if copydate_data:
-            copyright_date = [
-                d.get('text') for d in copydate_data
-                if d.get('attrib') if d.get('attrib',{}).get('q') == 'dcterms:dateCopyrighted'
-            ]
-            self.update_source_resource({"copyrightDate": copyright_date})
-
-    def map_title(self):
-        # separate out alternate title(s) from main title
-        self.source_resource_prop_to_prop(
-            "title", suppress_attribs={'q': 'alternative'})
-        grab_titles = self.provider_data.get('title', None)
-        if grab_titles:
-            alt_titles = [
-                t.get('text') for t in grab_titles
-                if t.get('attrib') if t.get('attrib',{}).get('q') == 'alternative'
-            ]
-            self.update_source_resource({"alternativeTitle": alt_titles})
-
-    def map_type(self):
-        # separate out q="genreform" values from type values
-        self.source_resource_prop_to_prop(
-            "type", suppress_attribs={'q': 'genreform'})
-        genre_data = self.provider_data.get('type', None)
-        if genre_data:
-            genre_form = [
-                g.get('text') for g in genre_data
-                if g.get('attrib') if g.get('attrib',{}).get('q') == 'genreform'
-            ]
-            self.update_source_resource({"genre": genre_form})
+        return subject_objs

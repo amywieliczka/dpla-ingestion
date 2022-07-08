@@ -20,6 +20,15 @@ class OAC_DCMapperSuppressDescription2(OAC_DCMapper):
     2) Workman Family Papers (collection ID #25043)
     '''
     # sourceResource mapping
+    def map(self):
+        super(OAC_DCMapperSuppressDescription2, self).map()
+
+        descriptions = self.map_description()
+        if len(descriptions):
+            self.mapped_data["sourceResource"].update({
+                'description': descriptions
+            })
+
     def map_description(self):
         descs = self.provider_data.get('description', [])
         safe_descs = []
@@ -27,5 +36,4 @@ class OAC_DCMapperSuppressDescription2(OAC_DCMapper):
             if n == 1:
                 continue
             safe_descs.append(desc['text'])
-        self.update_source_resource({'description':safe_descs}) \
-                if len(safe_descs) else None
+        return safe_descs
