@@ -3,11 +3,13 @@ from akara import response
 from akara.services import simple_service
 from amara.thirdparty import json
 from dplaingestion.selector import exists, getprop, setprop
+from dplaingestion.utilities import load_json_body
 import re
 
 @simple_service('POST', 'http://purl.org/la/dp/decode_html', 'decode_html',
                 'application/json')
-def decode_html(body, ctype, prop=None):
+@load_json_body(response)
+def decode_html(data, ctype, prop=None):
     """Decodes any encoded html in the prop
 
     Keyword arguments:
@@ -16,13 +18,6 @@ def decode_html(body, ctype, prop=None):
     prop -- the prop to decode
     
     """
-
-    try:
-        data = json.loads(body)
-    except:
-        response.code = 500
-        response.add_header('content-type', 'text/plain')
-        return "Unable to parse body as JSON"
 
     REGEX = ('&quot;', '"'), ('&amp;', '&'), ('&lt;', '<'), ('&gt;', '>')
 

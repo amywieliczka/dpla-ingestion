@@ -11,6 +11,7 @@ from amara.thirdparty import json
 from akara import module_config
 
 from dplaingestion.selector import getprop, exists
+from dplaingestion.utilities import load_json_body
 
 
 IGNORE = module_config().get('IGNORE')
@@ -18,13 +19,8 @@ PENDING = module_config().get('PENDING')
 
 @simple_service('POST', 'http://purl.org/la/dp/ia_identify_object',
                 'ia_identify_object', 'application/json')
-def ia_identify_object(body, ctype, download="True"):
-    try:
-        data = json.loads(body)
-    except:
-        response.code = 500
-        response.add_header('content-type', 'text/plain')
-        return "Unable to parse body as JSON"
+@load_json_body(response)
+def ia_identify_object(data, ctype, download="True"):
 
     original_preview_key = "originalRecord/files/gif"
     preview_format = "http://www.archive.org/download/{0}/{1}"

@@ -4,12 +4,13 @@ from akara import response
 from akara.services import simple_service
 from amara.thirdparty import json
 from dplaingestion.selector import getprop, setprop, exists
-from dplaingestion.utilities import iterify
+from dplaingestion.utilities import iterify, load_json_body
 
 REGEXPS = ('\.',''), ('\(',''), ('\)',''), ('-',''), (',','')
 
 @simple_service('POST', 'http://purl.org/la/dp/enrich_location', 'enrich_location', 'application/json')
-def enrichlocation(body,ctype,action="enrich_location", prop="sourceResource/spatial"):
+@load_json_body(response)
+def enrichlocation(data,ctype,action="enrich_location", prop="sourceResource/spatial"):
     """
     Service that accepts a JSON document and enriches the "spatial" field of that document by
     iterating through the spatial fields and mapping to the state and iso3166-2, if not already
@@ -18,13 +19,6 @@ def enrichlocation(body,ctype,action="enrich_location", prop="sourceResource/spa
     specific location enrichment module ran, the default is to not search those fields for State name
     abbreviations, but only for full State names.
     """
-
-    try:
-        data = json.loads(body)
-    except:
-        response.code = 500
-        response.add_header('content-type', 'text/plain')
-        return "Unable to parse body as JSON"
 
     if exists(data,prop):
         v = iterify(getprop(data,prop))

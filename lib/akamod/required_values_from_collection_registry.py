@@ -37,34 +37,36 @@ def set_field_from_value_mode(data, field, mode, value, multivalue=True):
     ckey field with the value passed in.
     '''
     #logger.debug('Field:{} mode:{} value:{} mv:{}'.format(field, mode, value, multivalue))
-    if value: #no value don't bother
-        if mode=='overwrite':
-            if exists(data, field):
-                setprop(data, field, value)
+    if not value: #no value don't bother
+        return data
+
+    if mode=='overwrite':
+        if exists(data, field):
+            setprop(data, field, value)
+        else:
+            pp,pn = tuple(field.lstrip('/').split('/',1))
+            if not pp in data:
+                data[pp] = {}
+            data[pp][pn] = value
+    elif mode=='append':
+        new_value = []
+        if exists(data, field):
+            old_value = getprop(data, field)
+            if isinstance(old_value, list):
+                new_value.extend(old_value)
             else:
-                pp,pn = tuple(field.lstrip('/').split('/',1))
-                if not pp in data:
-                    data[pp] = {}
-                data[pp][pn] = value
-        elif mode=='append':
-            new_value = []
-            if exists(data, field):
-                old_value = getprop(data, field)
-                if isinstance(old_value, list):
-                    new_value.extend(old_value)
-                else:
-                    new_value.append(old_value)
-            if isinstance(value, list):
-                new_value.extend(value)
-            else:
-                new_value.append(value)
-            setprop(data, field, new_value)
-        else: # fill blanks
-            if not exists(data, field) or not getprop(data,
-                    field,keyErrorAsNone=True):
-                if multivalue and not isinstance(value, list):
-                    value = [value]
-                setprop(data, field, value)
+                new_value.append(old_value)
+        if isinstance(value, list):
+            new_value.extend(value)
+        else:
+            new_value.append(value)
+        setprop(data, field, new_value)
+    else: # fill blanks
+        if not exists(data, field) or not getprop(data,
+                field,keyErrorAsNone=True):
+            if multivalue and not isinstance(value, list):
+                value = [value]
+            setprop(data, field, value)
     return data
 
 def set_rights_from_collection(data, mode):

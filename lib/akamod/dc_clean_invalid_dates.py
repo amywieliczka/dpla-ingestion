@@ -4,6 +4,7 @@ from akara.services import simple_service
 from amara.thirdparty import json
 from dplaingestion.selector import getprop, setprop, exists, delprop
 import re
+from dplaingestion.utilities import load_json_body
 
 
 def check_date_dict(v):
@@ -34,16 +35,9 @@ def convert(data, prop):
 
 @simple_service('POST', 'http://purl.org/la/dp/dc_clean_invalid_dates',
                 'dc_clean_invalid_dates', 'application/json')
-def dc_clean_invalid_dates(body, ctype, action="cleanup_value",
+@load_json_body(response)
+def dc_clean_invalid_dates(data, ctype, action="cleanup_value",
                            prop="sourceResource/date"):
-    if prop:
-        try:
-            data = json.loads(body)
-        except:
-            response.code = 500
-            response.add_header('content-type', 'text/plain')
-            return "Unable to parse body as JSON"
-
         for p in prop.split(","):
             if exists(data, p):
                 convert(data, p)

@@ -3,7 +3,7 @@ from akara import module_config
 from akara import response
 from akara.services import simple_service
 from amara.thirdparty import json
-
+from dplaingestion.utilities import load_json_body
 
 def convert_last(data, path, name, conv, delnonexisting):
     """ Converts the elements in data object.
@@ -177,7 +177,8 @@ def the_same_beginning(prop, target):
 
 
 @simple_service('POST', 'http://purl.org/la/dp/lookup', 'lookup', 'application/json')
-def lookup(body, ctype, prop, target, substitution, inverse=None, delnonexisting=False):
+@load_json_body(response)
+def lookup(data, ctype, prop, target, substitution, inverse=None, delnonexisting=False):
     """ Performs simple lookup.
 
     This module makes a simple conversion of the values from the `prop` path,
@@ -338,15 +339,6 @@ def lookup(body, ctype, prop, target, substitution, inverse=None, delnonexisting
         """Logs whole body JSON."""
         if LOG_JSON_ON_ERROR:
             logger.debug(body)
-
-    # Parse incoming JSON
-    data = {}
-    try:
-        data = json.loads(body)
-    except:
-        response.code = 500
-        response.add_header('content-type', 'text/plain')
-        return "Unable to parse body as JSON"
 
     # Check target variable.
     if not target:

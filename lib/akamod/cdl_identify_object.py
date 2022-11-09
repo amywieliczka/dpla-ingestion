@@ -5,21 +5,16 @@ from amara.thirdparty import json
 from dplaingestion.selector import getprop, setprop, exists, delprop
 from akara import module_config
 from amara.lib.iri import is_absolute
+from dplaingestion.utilities import load_json_body
 
 @simple_service('POST', 'http://purl.org/la/dp/cdl_identify_object',
     'cdl_identify_object', 'application/json')
-def cdl_identify_object(body, ctype):
+@load_json_body(response)
+def cdl_identify_object(data, ctype):
     """
     Responsible for: adding a field to a document with the URL where we
     should expect to the find the thumbnail.
     """
-
-    try:
-        data = json.loads(body)
-    except:
-        response.code = 500
-        response.add_header('content-type', 'text/plain')
-        return "Unable to parse body as JSON"
 
     url = None
     if exists(data, "object"):

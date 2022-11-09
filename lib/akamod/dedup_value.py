@@ -3,24 +3,19 @@ from akara import response
 from akara.services import simple_service
 from amara.thirdparty import json
 from dplaingestion.selector import getprop, setprop, exists
+from dplaingestion.utilities import load_json_body
 import re
 
 @simple_service('POST', 'http://purl.org/la/dp/dedup_value', 'dedup_value',
                 'application/json')
-def dedup_value(body, ctype, action="dedup_value", prop=None):
+@load_json_body(response)
+def dedup_value(data, ctype, action="dedup_value", prop=None):
     '''
     Service that accepts a JSON document and enriches the prop field of that
     document by removing duplicate array elements
     '''
 
     if prop:
-        try:
-            data = json.loads(body)
-        except:
-            response.code = 500
-            response.add_header('content-type', 'text/plain')
-            return "Unable to parse body as JSON"
-
         for p in prop.split(","):
             if exists(data, p):
                 v = getprop(data, p)

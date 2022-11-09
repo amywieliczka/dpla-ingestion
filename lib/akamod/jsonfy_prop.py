@@ -5,21 +5,21 @@ from amara.thirdparty import json
 from dplaingestion.selector import getprop, setprop
 
 
-def jsonfy_obj(obj):
+def jsonfy_obj(data):
     '''Jsonfy a python dict object. For immediate sub items (not recursive yet
     if the data can be turned into a json object, do so.
     Unpacks string json objects buried in some blacklight/solr feeds.
     '''
     obj_jsonfied = {}
-    if isinstance(obj, numbers.Number) or isinstance(obj, bool):
-        return obj
-    if isinstance(obj, basestring):
+    if isinstance(data, numbers.Number) or isinstance(data, bool):
+        return data
+    if isinstance(data, str):
         try:
-            x = json.loads(obj)
+            x = json.loads(data)
         except (ValueError, TypeError) as e:
-            x = obj
+            x = data
         return x
-    for key, value in obj.items():
+    for key, value in list(data.items()):
         if isinstance(value, list):
             new_list = []
             for v in value:
@@ -43,27 +43,11 @@ def jsonfy_obj(obj):
 
 @simple_service("POST", "http://purl.org/la/dp/jsonfy-prop", "jsonfy-prop",
                 "application/json")
-def jsonfy_prop(body, ctype, prop=None):
+@load_json_body(response)
+def jsonfy_prop(data, ctype, prop=None):
     """ Some data is packed as strings that contain json. (UCSD)
     Take the data in the given property and turn any sub-values that can be
     read by json.loads into json object.
     """
-
-    try:
-        data = json.loads(body)
-    except:
-        response.code = 500
-        response.add_header('content-type', 'text/plain')
-        return "Unable to parse body as JSON"
-
-    if prop:
-        obj = getprop(data, prop, True)
-    else:
-        obj = data
-
-    obj_jsonfied = jsonfy_obj(obj)
-    if prop:
-        setprop(data, prop, obj_jsonfied)
-    else:
-        data = obj_jsonfied
-    return json.dumps(data)
+    obj_jsonfied = jsonfy_obj(data)
+    return json.dumps(obj_jsonfied)

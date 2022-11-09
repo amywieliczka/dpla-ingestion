@@ -5,12 +5,14 @@ from amara.thirdparty import json
 from dplaingestion.selector import getprop, setprop, exists
 from akara import module_config
 from amara.lib.iri import is_absolute
+from dplaingestion.utilities import load_json_body
 
 IGNORE = module_config().get('IGNORE')
 PENDING = module_config().get('PENDING')
 
 @simple_service('POST', 'http://purl.org/la/dp/contentdm_identify_object',
     'contentdm_identify_object', 'application/json')
+@load_json_body(response)
 def contentdm_identify_object(body, ctype, download="True"):
     """
     Responsible for: adding a field to a document with the URL where we
@@ -28,13 +30,6 @@ def contentdm_identify_object(body, ctype, download="True"):
             handle: http://test.provider/u?/ctm,101
             thumbnail: http://test.provider/cgi-bin/thumbnail.exe?CISOROOT=/ctm&CISOPTR=101"
     """
-
-    try:
-        data = json.loads(body)
-    except:
-        response.code = 500
-        response.add_header('content-type', 'text/plain')
-        return "Unable to parse body as JSON"
 
     handle_field = "originalRecord/handle"
     if exists(data, handle_field):

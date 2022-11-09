@@ -12,11 +12,9 @@ from dplaingestion.selector import getprop, setprop, delprop, exists
 from dplaingestion.utilities import iterify, clean_date, \
                                     remove_all_brackets_and_strip, \
                                     remove_single_brackets_and_strip
+from dplaingestion.utilities import load_json_body
 
-HTTP_INTERNAL_SERVER_ERROR = 500
-HTTP_TYPE_JSON = 'application/json'
-HTTP_TYPE_TEXT = 'text/plain'
-HTTP_HEADER_TYPE = 'Content-Type'
+
 # default date used by dateutil-python to populate absent date elements
 # during parse, e.g. "1999" would become "1999-01-01" instead of using the
 # current month/day
@@ -366,8 +364,9 @@ def check_date_format(data, prop):
 
 
 @simple_service('POST', 'http://purl.org/la/dp/enrich_earliest_date',
-                'enrich_earliest_date', HTTP_TYPE_JSON)
-def enrich_earliest_date(body,
+                'enrich_earliest_date', 'application/json')
+@load_json_body(response)
+def enrich_earliest_date(data,
                          ctype,
                          action="enrich_earliest_date",
                          prop="sourceResource/date"):
@@ -379,21 +378,15 @@ def enrich_earliest_date(body,
     b) Extracts all dates, and sets the created date to the earliest date
     c) Checks the format of the date
     """
-    try:
-        data = json.loads(body)
-    except:
-        response.code = HTTP_INTERNAL_SERVER_ERROR
-        response.add_header(HTTP_HEADER_TYPE, HTTP_TYPE_TEXT)
-        return "Unable to parse body as JSON"
-
     convert_dates(data, prop, True)
     check_date_format(data, prop)
     return json.dumps(data)
 
 
 @simple_service('POST', 'http://purl.org/la/dp/enrich_date', 'enrich_date',
-                HTTP_TYPE_JSON)
-def enrich_date(body,
+                'application/json')
+@load_json_body(response)
+def enrich_date(data,
                 ctype,
                 action="enrich_date",
                 prop="sourceResource/temporal"):
@@ -405,13 +398,6 @@ def enrich_date(body,
     b) Extracts all dates
     c) Checks the format of the date
     """
-    try:
-        data = json.loads(body)
-    except:
-        response.code = HTTP_INTERNAL_SERVER_ERROR
-        response.add_header(HTTP_HEADER_TYPE, HTTP_TYPE_TEXT)
-        return "Unable to parse body as JSON"
-
     convert_dates(data, prop, False)
     check_date_format(data, prop)
     return json.dumps(data)

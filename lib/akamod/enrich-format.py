@@ -7,11 +7,13 @@ from akara.services import simple_service
 from amara.thirdparty import json
 from dplaingestion.selector import delprop, getprop, setprop, exists
 from amara.lib.iri import is_absolute
+from dplaingestion.utilities import load_json_body
 
 
 @simple_service('POST', 'http://purl.org/la/dp/enrich-format', 'enrich-format',
                 'application/json')
-def enrichformat(body, ctype, action="enrich-format",
+@load_json_body(response)
+def enrichformat(data, ctype, action="enrich-format",
                  prop="sourceResource/format",
                  type_field="sourceResource/type"):
     """
@@ -48,65 +50,58 @@ def enrichformat(body, ctype, action="enrich-format",
     IMT_TYPES = ['application', 'audio', 'image', 'message', 'model',
                  'multipart', 'text', 'video']
 
-    def get_ext(s):
-        ext = os.path.splitext(s)[1].split('.')
-
-        return ext[1] if len(ext) == 2 else ""
-
-    def cleanup(s):
-        s = s.lower().strip()
-        for pattern, replace in REGEXPS:
-            s = re.sub(pattern, replace, s)
-            s = re.sub(r"^([a-z0-9/]+)\s.*",r"\1", s)
-        return s
-
-    def is_imt(s):
+    def is_imt(cleaned_format):
         imt_regexes = [re.compile('^' + x + '(/)') for x in IMT_TYPES]
-        return any(regex.match(s) for regex in imt_regexes)
+        return any(regex.match(cleaned_format) for regex in imt_regexes)
 
-    try:
-        data = json.loads(body)
-    except:
-        response.code = 500
-        response.add_header('content-type', 'text/plain')
-        return "Unable to parse body as JSON"
+    if not exists(data, prop):
+        return json.dumps(data)
+
+    record_formats = getprop(data, prop)
+    if isinstance(record_formats, basestring):
+        record_formats = [record_formats]
 
     imt_values = []
-    if exists(data, prop):
-        v = getprop(data, prop)
-        format = []
-        hasview_format = []
+    mapped_format = []
 
-        for s in (v if not isinstance(v, basestring) else [v]):
-            if s.startswith("http") and is_absolute(s):
-                s = get_ext(s)
-            cleaned = cleanup(s)
-            if is_imt(cleaned):
-                # Append to imt_values for use in type
-                imt_values.append(cleaned)
-                # Move IMT values to hasView/format else discard
-                if exists(data, "hasView") and not \
-                    exists(data, "hasView/format") and \
-                                cleaned not in hasview_format:
-                    hasview_format.append(cleaned)
-                if cleaned not in format:
-                    format.append(cleaned)
-            else:
-                # Retain non-IMT values in sourceResource/format, non-cleaned
-                if s not in format:
-                    format.append(s)
+    for record_format in record_formats:
+        if record_format.startswith("http") and is_absolute(record_format):
+            ext = os.path.splitext(record_format)[1].split('.')
+            record_format = ext[1] if len(ext) == 2 else ""
+            
+        cleaned_format = record_format.lower().strip()
+        for pattern, replace in REGEXPS:
+            cleaned_format = re.sub(pattern, replace, cleaned_format)
+            cleaned_format = re.sub(r"^([a-z0-9/]+)\s.*",r"\1", cleaned_format)
 
-        if format:
-            if len(format) == 1:
-                format = format[0]
-            setprop(data, prop, format)
+        if is_imt(cleaned_format):
+            # Append IMT values to mapped_format
+            if cleaned_format not in mapped_format:
+                mapped_format.append(cleaned_format)
+
+            # Append to imt_values for use in type
+            if cleaned_format not in imt_values:
+                imt_values.append(cleaned_format)
+
         else:
-            delprop(data, prop)
+            # Retain non-IMT values in sourceResource/format, non-cleaned
+            if record_format not in mapped_format:
+                mapped_format.append(record_format)
 
-        if hasview_format:
-            if len(hasview_format) == 1:
-                hasview_format = hasview_format[0]
-            setprop(data, "hasView/format", hasview_format)
+    if mapped_format:
+        if len(mapped_format) == 1:
+            mapped_format = mapped_format[0]
+        setprop(data, prop, mapped_format)
+    else:
+        delprop(data, prop)
+
+    if (exists(data, "hasView") and 
+            not exists(data, "hasView/format") and 
+            imt_values):
+        hasview_format = imt_values
+        if len(hasview_format) == 1:
+            hasview_format = hasview_format[0]
+        setprop(data, "hasView/format", hasview_format)
 
     # Setting the type if it is empty.
     if not exists(data, type_field) and imt_values:

@@ -3,21 +3,15 @@ from akara import response
 from akara.services import simple_service
 from amara.thirdparty import json
 from dplaingestion.selector import getprop, setprop, delprop
+from dplaingestion.utilities import load_json_body
 
 @simple_service("POST", "http://purl.org/la/dp/remove_list_values",
                 "remove_list_values", "application/json")
-def remove_list_values(body, ctype, prop=None, values=None):
+@load_json_body(response)
+def remove_list_values(data, ctype, prop=None, values=None):
     """Given a comma-separated string of values, removes any instance of each
        value from the prop.
     """
-
-    try:
-        data = json.loads(body)
-    except:
-        response.code = 500
-        response.add_header('content-type', 'text/plain')
-        return "Unable to parse body as JSON"
-
     v = getprop(data, prop, True)
     
     if isinstance(v, list) and values is not None:

@@ -3,10 +3,12 @@ from akara import response
 from akara.services import simple_service
 from amara.thirdparty import json
 from dplaingestion.selector import getprop, setprop, exists
+from utilities import load_json_body
 import re
 
 @simple_service('POST', 'http://purl.org/la/dp/enrich-subject', 'enrich-subject', 'application/json')
-def enrichsubject(body,ctype,action="enrich-subject",prop="sourceResource/subject"):
+@load_json_body(response)
+def enrichsubject(data,ctype,action="enrich-subject",prop="sourceResource/subject"):
     '''   
     Service that accepts a JSON document and enriches the "subject" field of that document
     by: 
@@ -18,38 +20,29 @@ def enrichsubject(body,ctype,action="enrich-subject",prop="sourceResource/subjec
     as a parameter
     '''   
     
-    TAGS_FOR_STRIPPING = '[\.\' ";]*' # Tags for stripping at beginning and at the end.
-    REGEXPS = ('\s*-{2,4}\s*', '--'), \
+    regexps = ('\s*-{2,4}\s*', '--'), \
               ('\s*-\s*-\s*', '--'), \
-              ('^' + TAGS_FOR_STRIPPING, ''), \
-              (TAGS_FOR_STRIPPING + '$','')
+              ('^[\.\' ";]*', ''), \
+              ('[\.\' ";]*$','')
 
     def cleanup(s):
+        if isinstance(s, dict):
+            #already {'name': <val>}
+            s = s['name']
+
         s = s.strip()
-        for pattern, replace in REGEXPS:
+        for pattern, replace in regexps:
             s = re.sub(pattern, replace, s)
-        if len(s) > 2:
-            s = s[0].upper() + s[1:]
-        else:
-            s = None
+        s = s[:1].upper() + s[1:]
         return s
 
-    try :
-        data = json.loads(body)
-    except:
-        response.code = 500
-        response.add_header('content-type','text/plain')
-        return "Unable to parse body as JSON"
-
     if exists(data,prop):
-        v = getprop(data,prop)
+        value = getprop(data,prop)
         subject = []
-        for s in (v if not isinstance(v,basestring) else [v]):
-            if isinstance(s, dict):
-                #already {'name': <val>}
-                subj = cleanup(s['name'])
-            else:
-                subj = cleanup(s)
+        if isinstance(value, basestring):
+            value = [value]
+        for s in value:
+            subj = cleanup(s)
             if subj:
                 subject.append({ "name" : subj })
 

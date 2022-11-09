@@ -4,7 +4,7 @@ from akara import response
 from akara.services import simple_service
 from amara.thirdparty import json
 from dplaingestion.selector import getprop, setprop, exists
-from dplaingestion.utilities import iterify
+from dplaingestion.utilities import iterify, load_json_body
 
 hparser = HTMLParser()
 
@@ -35,7 +35,8 @@ def unescape_xhtml_object(obj):
 
 @simple_service('POST', 'http://purl.org/org/cdlib/ucldc/unescape-xhtml-entities', 'unescape-xhtml-entities',
     'application/json')
-def unescape_xhtml_entities(body, ctype, field=None):
+@load_json_body(response)
+def unescape_xhtml_entities(data, ctype, field=None):
     '''Unescape xhtml entities in data values for a field and it's subfields
 
     Keyword arguments:
@@ -44,13 +45,6 @@ def unescape_xhtml_entities(body, ctype, field=None):
     field -- top level field to unescape, unescape sub fields
              for now will just operate on the sourceResource data
     '''
-    try:
-        data = json.loads(body)
-    except:
-        response.code = 500
-        response.add_header('content-type', 'text/plain')
-        return "Unable to parse body as JSON"
-
     # TODO: make recursive, in case it is needed for other fields
     if exists(data, field):
         prop = getprop(data, field)

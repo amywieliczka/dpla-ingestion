@@ -5,43 +5,27 @@ from akara.services import simple_service
 from akara.util import copy_headers_to_dict
 from akara import request, response
 from dplaingestion.selector import getprop, setprop, exists
+from dplaingestion.utilities import load_json_body
 
 @simple_service('POST', 'http://purl.org/org/cdlib/ucldc/dedupe-sourceresource',
                 'dedupe-sourceresource',
                 'application/json')
-def dedupe_srcres(body, ctype):
-    try :
-        data = json.loads(body)
-    except:
-        response.code = 500
-        response.add_header('content-type', 'text/plain')
-        return "Unable to parse body as JSON"
-
-    doc = remove_blank_values(data)
-    return json.dumps(dedupe_sourceresource(doc))
-
-def remove_blank_values(doc):
+@load_json_body(response)
+def dedupe_srcres(data, ctype):
     '''Remove blank values from the sourceResource'''
-    for key, value in doc['sourceResource'].items():
+    for key, value in data['sourceResource'].items():
         if not value:
-            del doc['sourceResource'][key]
+            del data['sourceResource'][key]
         if value == [u'none'] or value == [u'[none]']:
-            del doc['sourceResource'][key]
-    return doc
-
-# from harvester.post_processing.dedup_sourceresource
-# need to un-duplicate this code, but circular import?
-def dedupe_sourceresource(doc):
-    ''' Look for duplicate values in the doc['sourceResource'] and
-    remove.
-    Values must be *exactly* the same
-    '''
-    for key, value in doc['sourceResource'].items():
+            del data['sourceResource'][key]
+    
+    for key, value in data['sourceResource'].items():
         if isinstance(value, list):
             # can't use set() because of dict values (non-hashable)
             new_list = []
             for item in value:
                 if item not in new_list:
                     new_list.append(item)
-            doc['sourceResource'][key] = new_list
-    return doc
+            data['sourceResource'][key] = new_list
+    return json.dumps(data)
+

@@ -3,25 +3,20 @@ from akara.services import simple_service
 from akara import request, response
 #from akara import logger
 from dplaingestion.selector import getprop, setprop, exists
+from lib.utilities import load_json_body
 
 @simple_service('POST',
     'http://purl.org/org/cdlib/ucldc/set-ucldc-dataprovider',
                 'set-ucldc-dataprovider',
                 'application/json')
-def set_ucldc_dataprovider(body, ctype):
+@load_json_body(response)
+def set_ucldc_dataprovider(data, ctype):
     '''For ucldc, we always have a originalRecord/collection entry.
     This has a repository object which may or may not have a list of 
     campuses.
     Concatenate the repo & campus if exisiting, separated by a ,
     for dataProvider value
-    '''
-    try :
-        data = json.loads(body)
-    except:
-        response.code = 500
-        response.add_header('content-type','text/plain')
-        return "Unable to parse body as JSON"
-    
+    '''    
     collection = getprop(data,'originalRecord/collection')[0]
     repo = collection['repository'][0]
     campus = None

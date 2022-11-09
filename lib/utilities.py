@@ -147,3 +147,32 @@ def url_join(*args):
 
     """
     return "/".join(map(lambda x: str(x).rstrip("/"), args))
+
+
+import json
+def load_json_body(response):
+    def decorator(func):
+        """Decorator to return a 500 error if the data is not JSON"""
+        @wraps(func)
+        def wrapper(body, *args, **kwargs):
+            try:
+                data = json.loads(body)
+            except:
+                response.code = 500
+                response.add_header('content-type', 'text/plain')
+                return "Unable to parse body as JSON"
+            func(data, *args, **kwargs)
+        return wrapper
+    return decorator
+
+def apply_to_leaves_two_layers(data, func, *args, **kwargs):
+    if isinstance(data, basestring):
+        new_data = func(data, *args, **kwargs)
+    elif isinstance(data, list):
+        new_data = []
+        for item in data:
+            if isinstance(item, basestring):
+                new_data.append(func(item, *args, **kwargs))
+            else:
+                new_data.append(item)
+    return new_data

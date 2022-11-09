@@ -5,10 +5,12 @@ from amara.thirdparty import json
 from dplaingestion.selector import getprop, setprop, delprop, exists
 from dplaingestion.utilities import iterify
 import re
+from dplaingestion.utilities import load_json_body
 
 @simple_service('POST', 'http://purl.org/la/dp/move_date_values',
                 'move_date_values', 'application/json')
-def movedatevalues(body, ctype, action="move_date_values", prop=None,
+@load_json_body(response)
+def movedatevalues(data, ctype, action="move_date_values", prop=None,
                    to_prop="sourceResource/temporal"):
     """
     Service that accepts a JSON document and moves any dates found in the prop
@@ -17,7 +19,7 @@ def movedatevalues(body, ctype, action="move_date_values", prop=None,
 
     if not prop:
         logger.error("Prop param is None in %s" % __name__)
-        return body
+        return 
 
     REGSEARCH = [
         "\d{1,4}\s*[-/]\s*\d{1,4}\s*[-/]\s*\d{1,4}\s*[-/]\s*\d{1,4}\s*[-/]\s*\d{1,4}\s*[-/]\s*\d{1,4}",
@@ -37,12 +39,6 @@ def movedatevalues(body, ctype, action="move_date_values", prop=None,
         s = re.sub("[\(\)\.\?]", "",s)
         return s.strip()
 
-    try:
-        data = json.loads(body)
-    except:
-        response.code = 500
-        response.add_header('content-type', 'text/plain')
-        return "Unable to parse body as JSON"
 
     if exists(data, prop):
         values = iterify(getprop(data, prop))

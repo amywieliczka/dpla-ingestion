@@ -7,6 +7,7 @@ from akara.services import simple_service
 from akara.util import copy_headers_to_dict
 from akara import request, response
 from dplaingestion.selector import getprop, setprop, exists
+from utilities import load_json_body
 
 COUCH_ID_BUILDER = lambda src, lname: "--".join((src,lname))
 COUCH_REC_ID_BUILDER = lambda src, id_handle: COUCH_ID_BUILDER(src,id_handle.strip().replace(" ","__"))
@@ -25,18 +26,12 @@ def select_id(source_name, data):
 @simple_service('POST', 'http://purl.org/la/dp/select-preservica-id',
 'select-preservica-id',
                 'application/json')
-def selectid(body, ctype):
+@load_json_body(response)
+def selectid(data, ctype):
     '''   
     Service that accepts a JSON document and adds or sets the "id" property to
     the value of the property named by the "prop" paramater
-    '''   
-    try :
-        data = json.loads(body)
-    except:
-        response.code = 500
-        response.add_header('content-type', 'text/plain')
-        return "Unable to parse body as JSON"
-
+    '''
     request_headers = copy_headers_to_dict(request.environ)
     source_name = request_headers.get('Source')
     try:

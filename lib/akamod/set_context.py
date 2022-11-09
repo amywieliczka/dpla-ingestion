@@ -2,21 +2,16 @@ from akara import response
 from amara.thirdparty import json
 from akara.services import simple_service
 from dplaingestion.selector import setprop
+from dplaingestion.utilities import load_json_body
 
 @simple_service('POST', 'http://purl.org/la/dp/set_context',
                 'set_context', 'application/json')
-def setcontext(body, ctype, prop="@context"):
+@load_json_body(response)
+def setcontext(data, ctype, prop="@context"):
     """   
     Service that accepts a JSON document and sets the "@context" field of that
     document.
     """
-
-    try :
-        data = json.loads(body)
-    except Exception:
-        response.code = 500
-        response.add_header('content-type','text/plain')
-        return "Unable to parse body as JSON"
 
     item_context = {
         "@context": "http://dp.la/api/items/context",

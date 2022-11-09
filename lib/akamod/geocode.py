@@ -12,10 +12,12 @@ import re
 from urllib import urlencode
 from urllib2 import URLError
 from dplaingestion.utilities import iterify, urlopen_with_retries
+from utilities import load_json_body
 
 @simple_service('POST', 'http://purl.org/la/dp/geocode', 'geocode',
                 'application/json')
-def geocode(body, ctype, prop="sourceResource/spatial", newprop='coordinates'):
+@load_json_body(response)
+def geocode(data, ctype, prop="sourceResource/spatial", newprop='coordinates'):
     '''
     Adds geocode data to the record coming as follows:
 
@@ -29,12 +31,6 @@ def geocode(body, ctype, prop="sourceResource/spatial", newprop='coordinates'):
        to identify parent features.
     4. Add any non-existing features to the spatial dictionary.
     '''
-    try:
-        data = json.loads(body)
-    except:
-        response.code = 500
-        response.add_header('content-type','text/plain')
-        return "Unable to parse body as JSON"
 
     if (not exists(data, prop)):
         pass

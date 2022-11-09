@@ -8,12 +8,12 @@ from dplaingestion.selector import getprop, setprop, exists
 
 @simple_service('POST', 'http://purl.org/la/dp/shred', 'shred',
                 'application/json')
-def shred(body, ctype, action="shred", prop=None, delim=';', keepdup=None):
+def shred(body, ctype, action="shred", prop=None, delimiter=';', keepdup=None):
     """
     Service that accepts a JSON document and "shreds" or "unshreds" the value
     of the field(s) named by the "prop" parameter
 
-    "prop" can include multiple property names, delimited by a comma (the delim
+    "prop" can include multiple property names, delimited by a comma (the delimiter
     property is used only for the fields to be shredded/unshredded). This
     requires that the fields share a common delimiter however.
 
@@ -23,7 +23,7 @@ def shred(body, ctype, action="shred", prop=None, delim=';', keepdup=None):
       'a,b(,c)' -> ['a', 'b(,c)']
     Duplicate values are removed unless keepdup evaluates true.
 
-    The 'unshred' action joins a list of values with delim.
+    The 'unshred' action joins a list of values with delimiter.
 
     See: https://issues.dp.la/issues/2940
          https://issues.dp.la/issues/4251
@@ -37,16 +37,6 @@ def shred(body, ctype, action="shred", prop=None, delim=';', keepdup=None):
         response.code = 500
         response.add_header('content-type', 'text/plain')
         return "Unable to parse body as JSON\n" + str(e)
-
-    def index_for_first_open_paren(values):
-        """
-        Accepts a list of values. Returns the index of the index of the first 
-        value containing an opening paren.
-        """
-        for v in values:
-            if v.count("(") > v.count(")"):
-                return values.index(v)
-        return None
 
     def index_for_matching_close_paren(values):
         """
@@ -73,8 +63,15 @@ def shred(body, ctype, action="shred", prop=None, delim=';', keepdup=None):
        
         This method rejoins it.
         """
-        index1 = index_for_first_open_paren(values)
-        index2 = index_for_matching_close_paren(values)
+        index1 = None
+        index2 = None
+        for v in values:
+            if v.count("(") > v.count(")"):
+                index1 = values.index(v)
+        for v in values:
+            if index2 is not None and v.count("(") > v.count(")"):
+                return index2
+        index_for_matching_close_paren(values)
         if index1 is not None and index2 is not None:
             if index1 == 0 and index2 == len(values) - 1:
                 return [delim.join(values)]
@@ -88,37 +85,34 @@ def shred(body, ctype, action="shred", prop=None, delim=';', keepdup=None):
         else:
             return values
 
-    for p in prop.split(','):
-        if exists(data, p):
-            v = getprop(data, p)
-            if action == "shred":
-                if isinstance(v, list):
-                    try:
-                        v = delim.join(v)
-                        v = v.replace("%s%s" % (delim, delim), delim)
-                    except Exception as e:
-                        logger.warn("Can't join list %s on delim for %s, %s" %
-                                    (v, data["_id"], e))
-                if delim in v:
-                    setprop(data, p, v)
-                else:
-                    continue
+    if not exists(data, prop):
+        return json.dumps(data)
 
-                shredded = [""]
-                for s in re.split(re.escape(delim), v):
-                    shredded.append(s)
-                shredded = rejoin_partials(shredded, delim)
-                shredded = [i.strip() for i in shredded if i.strip()]
- 
-                if not keepdup:
-                    result = []
-                    for s in shredded:
-                        if s not in result:
-                            result.append(s)
-                    shredded = result
-                setprop(data, p, shredded)
-            elif action == "unshred":
-                if isinstance(v, list):
-                    setprop(data, p, delim.join(v))
+    value = getprop(data, prop)
+    if isinstance(value, list):
+        try:
+            value = delimiter.join(value)
+            value = value.replace("%s%s" % (delimiter, delimiter), delimiter)
+        except Exception as e:
+            logger.warn("Can't join list %s on delimiter for %s, %s" %
+                        (value, data["_id"], e))
+
+    if delimiter in value:
+        setprop(data, prop, value)
+    else:
+        return json.dumps(data)
+
+    shredded = [""]
+    for s in re.split(re.escape(delimiter), value):
+        shredded.append(s)
+    shredded = rejoin_partials(shredded, delimiter)
+    shredded = [i.strip() for i in shredded if i.strip()]
+
+    result = []
+    for s in shredded:
+        if s not in result:
+            result.append(s)
+    shredded = result
+    setprop(data, prop, shredded)
 
     return json.dumps(data)

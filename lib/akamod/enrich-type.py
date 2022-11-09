@@ -2,6 +2,7 @@ from akara import logger, response, module_config
 from akara.services import simple_service
 from amara.thirdparty import json
 import dplaingestion.itemtype as itemtype
+from utilities import load_json_body
 
 type_for_type_keyword = \
         module_config('enrich_type').get('type_for_ot_keyword')
@@ -10,8 +11,8 @@ type_for_format_keyword = \
 
 @simple_service('POST', 'http://purl.org/la/dp/enrich-type', 'enrich-type',
                 'application/json')
-
-def enrichtype(body, ctype,
+@load_json_body(response)
+def enrichtype(data, ctype,
                action="enrich-type",
                prop="sourceResource/type",
                format_field="sourceResource/format",
@@ -30,36 +31,32 @@ def enrichtype(body, ctype,
     """
     global type_for_type_keyword, type_for_format_keyword
 
-    try:
-        data = json.loads(body)
-    except Exception:
-        response.code = 500
-        response.add_header('content-type', 'text/plain')
-        return "Unable to parse body as JSON"
+    # normalize type data structure
+    sr_type = data.get('sourceResource', {'type': []}).get('type')
+    if not isinstance(sr_type, list):
+        sr_type = [sr_type]
+    sr_type = [
+        t.get('#text', t.get('text')) 
+        if isinstance(t, dict) else t 
+        for t in sr_type
+    ]
 
-    type_strings = []
-    format_strings = []
-    try:
-        sr_type = data['sourceResource'].get('type', [])
-        sr_format = data['sourceResource'].get('format', [])
-    except KeyError:
-        # In this case, sourceResource is not present, so give up and return
-        # the original data unmodified.
-        id_for_msg = data.get('_id', '[no id]')
-        logger.warning('enrich-type lacks sourceResource for _id %s' % \
-                id_for_msg)
-        return body
-    if sr_type:
-        for t in sr_type if (type(sr_type) == list) else [sr_type]:
-            t_flat = t
-            if type(t) == dict:
-                t_flat = t.get('#text', None)
-                if not t_flat:
-                    t_flat = t.get('text', '')
-            type_strings.append(t_flat.lower())
-    if sr_format:
-        for f in sr_format if (type(sr_format) == list) else [sr_format]:
-            format_strings.append(f.lower())
+    # normalize format data structure
+    sr_format = data.get('sourceResource', {'format': []}).get('format')
+    if not isinstance(sr_format, list):
+        sr_format = [sr_format]
+    
+
+    if not sr_type or not sr_format:
+        logger.warning(
+            'enrich-type lacks sourceResource for _id ' + 
+            data.get('_id', '[no id]')
+        )
+        return json.dumps(data)
+
+    type_strings = [t.lower() for t in sr_type]
+    format_strings = [f.lower() for f in sr_format]
+
     try:
         data['sourceResource']['type'] = \
                 itemtype.type_for_strings_and_mappings([
@@ -67,9 +64,8 @@ def enrichtype(body, ctype,
                     (format_strings, type_for_format_keyword),
                 ])
     except itemtype.NoTypeError:
-        id_for_msg = data.get('_id', '[no id]')
         logger.warning('Can not deduce type for item with _id: %s' % \
-                       id_for_msg)
+                       data.get('_id', '[no id]'))
         if default:
             data['sourceResource']['type'] = default
         else:
@@ -77,13 +73,5 @@ def enrichtype(body, ctype,
                 del data['sourceResource']['type']
             except:
                 pass
-    finally:
-        if send_rejects_to_format and type_strings:
-            rej = itemtype.rejects([(type_strings, type_for_type_keyword)])
-            if rej:
-                if (not isinstance(sr_format, list)):
-                    sr_format = [sr_format]
-                sr_format.extend(rej)
-                data['sourceResource']['format'] = sr_format
 
     return json.dumps(data)

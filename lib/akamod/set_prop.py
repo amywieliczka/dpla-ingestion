@@ -3,11 +3,12 @@ from akara import response
 from akara.services import simple_service
 from amara.thirdparty import json
 from dplaingestion.selector import getprop, setprop, delprop, exists
-from dplaingestion.utilities import iterify
+from dplaingestion.utilities import iterify, load_json_body
 
 @simple_service('POST', 'http://purl.org/la/dp/set_prop', 'set_prop',
     'application/json')
-def set_prop(body, ctype, prop=None, value=None, condition_prop=None,
+@load_json_body(response)
+def set_prop(data, ctype, prop=None, value=None, condition_prop=None,
              condition_value=None, _dict=None):
     """Sets the value of prop.
 
@@ -21,49 +22,36 @@ def set_prop(body, ctype, prop=None, value=None, condition_prop=None,
                        condition_prop must have to set the prop
     
     """
-
-    try:
-        data = json.loads(body)
-    except:
-        response.code = 500
-        response.add_header('content-type', 'text/plain')
-        return "Unable to parse body as JSON"
-
     if not value:
         logger.error("No value was supplied to set_prop.")
-    else:
-        if _dict:
-            try:
-                value = json.loads(value)
-            except Exception, e:
-                logger.error("Unable to parse set_prop value: %s" % e)
-                return body
+        return json.dumps(data)
 
-        def _set_prop():
-            """Returns true if
+    def _set_prop():
+        """Returns true if
 
-               1. The condition_prop is not set OR
-               2. The condition_prop is set and exists and the condition_value
-                  is None OR
-               3. The condition_prop is set and exists, the condition_value is
-                  set, and the value of condition_prop equals condition_value
-            """
-            return (not condition_prop or
-                    (exists(data, condition_prop) and
-                     (not condition_value or
-                      getprop(data, condition_prop) == condition_value)))
+            1. The condition_prop is not set OR
+            2. The condition_prop is set and exists and the condition_value
+                is None OR
+            3. The condition_prop is set and exists, the condition_value is
+                set, and the value of condition_prop equals condition_value
+        """
+        return (not condition_prop or
+                (exists(data, condition_prop) and
+                    (not condition_value or
+                    getprop(data, condition_prop) == condition_value)))
 
-        if _set_prop():
-            try:
-                setprop(data, prop, value)
-            except Exception, e:
-                logger.error("Error in set_prop: %s" % e)
+    if _set_prop():
+        try:
+            setprop(data, prop, value)
+        except Exception, e:
+            logger.error("Error in set_prop: %s" % e)
 
     return json.dumps(data)
 
 @simple_service('POST', 'http://purl.org/la/dp/unset_prop', 'unset_prop',
     'application/json')
-def unset_prop(body, ctype, prop=None, condition=None, condition_prop=None):
+@load_json_body(response)
+def unset_prop(data, ctype, prop=None, condition=None, condition_prop=None):
     """Unsets the value of prop.
 
     Keyword arguments:
@@ -93,13 +81,6 @@ def unset_prop(body, ctype, prop=None, condition=None, condition_prop=None):
             [values.append(i) for i in iterified]
 
         return CONDITIONS[condition](values)
-
-    try:
-        data = json.loads(body)
-    except:
-        response.code = 500
-        response.add_header('content-type', 'text/plain')
-        return "Unable to parse body as JSON"
 
     # Check if prop exists to avoid key error
     if exists(data, prop):

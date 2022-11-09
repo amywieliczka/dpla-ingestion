@@ -4,27 +4,9 @@ from akara.services import simple_service
 from amara.thirdparty import json
 from dplaingestion.selector import getprop, setprop, exists
 import re
+from dplaingestion.utilities import load_json_body
 
-
-def convert(data, prop):
-    """Converts a property.
-
-    Arguments:
-        data - dictionary with JSON
-        prop - property name
-
-    Returns:
-        Nothing, the dictionary is changed in place.
-    """
-    if exists(data, prop):
-        v = getprop(data, prop)
-        if isinstance(v, basestring):
-            setprop(data, prop, cleanup(v, prop))
-        elif isinstance(v, list):
-            temp = []
-            for val in v:
-                temp.append(cleanup(val, prop))
-            setprop(data, prop, temp)
+from lib.utilities import apply_to_leaves_two_layers
 
 
 def cleanup(value, prop):
@@ -42,24 +24,21 @@ def cleanup(value, prop):
     # Remove dot at the end if field name is not in the
     # DONT_STRIP_DOT_END table.
     with_dot = '' if prop in DONT_STRIP_DOT_END else "\."
+
     # Tags for stripping at beginning and at the end.
-
-    TAGS_FOR_STRIPPING = '[%s\' \r\t\n;,%s]*'
-
-    TAGS_FOR_STRIPPING_AT_BEGIN = TAGS_FOR_STRIPPING % ("\.", dquote)
-    TAGS_FOR_STRIPPING_AT_END = TAGS_FOR_STRIPPING % (with_dot, dquote)
+    lead_strip = '[%s\' \r\t\n;,%s]*' % ("\.", dquote)
+    trail_strip = '[%s\' \r\t\n;,%s]*' % (with_dot, dquote)
 
     REGEXPS = ('\( ', '('), \
               (' \)', ')'), \
               (' *-- *', '--'), \
               ('[\t ]{2,}', ' '), \
-              ('^' + TAGS_FOR_STRIPPING_AT_BEGIN, ''), \
-              (TAGS_FOR_STRIPPING_AT_END + '$', '')
+              ('^' + lead_strip, ''), \
+              (trail_strip + '$', '')
 
-    if isinstance(value, basestring):
-        value = value.strip()
-        for pattern, replace in REGEXPS:
-            value = re.sub(pattern, replace, value)
+    value = value.strip()
+    for pattern, replace in REGEXPS:
+        value = re.sub(pattern, replace, value)
 
     return value
 
@@ -92,7 +71,8 @@ DEFAULT_PROP = [
 
 @simple_service('POST', 'http://purl.org/la/dp/cleanup_value', 'cleanup_value',
                 'application/json')
-def cleanup_value(body,
+@load_json_body(response)
+def cleanup_value(data,
                   ctype,
                   action="cleanup_value",
                   prop=",".join(DEFAULT_PROP + DONT_STRIP_DOT_END)):
@@ -101,18 +81,12 @@ def cleanup_value(body,
 
     a) applying a set of regexps to do data cleanup
     '''
-
-    if prop:
-        try:
-            data = json.loads(body)
-        except:
-            response.code = 500
-            response.add_header('content-type', 'text/plain')
-            return "Unable to parse body as JSON"
-
-        for p in prop.split(","):
-            convert(data, p)
-    else:
-        logger.error("Prop param in None in %s" % __name__)
+    props = prop
+    for prop in props.split(","):
+        if exists(data, prop):
+            data_value = getprop(data, prop)
+            new_data_value = apply_to_leaves_two_layers(
+                data_value, cleanup, prop)
+            setprop(data, prop, new_data_value)
 
     return json.dumps(data)

@@ -2,17 +2,13 @@ from akara import logger, response
 from akara.services import simple_service
 from amara.thirdparty import json
 from dplaingestion.create_mapper import create_mapper
+from lib.utilities import load_json_body
+from dplaingestion.utilities import load_json_body
 
 @simple_service('POST', 'http://purl.org/la/dp/dpla_mapper', 'dpla_mapper',
                 'application/json')
-def dpla_mapper(body, ctype, mapper_type=None):
-    try:
-        data = json.loads(body)
-    except:
-        response.code = 500
-        response.add_header('content-type', 'text/plain')
-        return "Unable to parse body as JSON"
-
+@load_json_body(response)
+def dpla_mapper(data, ctype, mapper_type=None):
     if not mapper_type:
         logger.error("No mapper_type was supplied to dpla_mapper.")
     else:
